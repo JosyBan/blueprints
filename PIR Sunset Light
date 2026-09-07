@@ -4,7 +4,7 @@ blueprint:
     Turn a light on when either of two PIR motion sensors detects movement,
     but only during the configured period around sunset. The light remains on
     until both PIR sensors have been clear for the configured time.
-    Brightness and sunset offset are configurable.
+    Brightness and sunset offset are configurable. TEST
 
     Defaults:
       - 2 PIR sensors
