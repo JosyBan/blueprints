@@ -1,0 +1,140 @@
+blueprint:
+  name: PIR Sunset Light
+  description: >
+    Turn a light on when either of two PIR motion sensors detects movement,
+    but only during the configured period around sunset. The light remains on
+    until both PIR sensors have been clear for the configured time.
+    Brightness and sunset offset are configurable.
+
+    Defaults:
+      - 2 PIR sensors
+      - 90 seconds of no motion
+      - 100% brightness
+      - 1 hour before sunset
+  domain: automation
+  source_url: https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO/blob/main/blueprints/automation/pir_sunset_light.yaml
+  input:
+    motion_sensor_1:
+      name: PIR sensor 1
+      description: First PIR motion sensor.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+
+    motion_sensor_2:
+      name: PIR sensor 2
+      description: Second PIR motion sensor.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+
+    target_light:
+      name: Light
+      description: Light or LED to control.
+      selector:
+        target:
+          entity:
+            filter:
+              - domain: light
+
+    no_motion_duration:
+      name: No-motion duration
+      description: >
+        How long both PIR sensors must remain clear before the light turns off.
+      default:
+        seconds: 90
+      selector:
+        duration:
+          enable_day: false
+          enable_hour: true
+          enable_minute: true
+          enable_second: true
+
+    brightness:
+      name: Brightness
+      description: Brightness to use when the light is turned on.
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    sunset_offset:
+      name: Sunset offset
+      description: >
+        How far before or after sunset the automation is allowed to operate.
+        The default is 1 hour before sunset. Negative values mean before sunset.
+      default:
+        hours: -1
+      selector:
+        duration:
+          enable_day: false
+          enable_hour: true
+          enable_minute: true
+          enable_second: true
+          allow_negative: true
+
+    stuck_sensor_timeout:
+      name: Stuck-sensor safety timeout
+      description: >
+        Safety net only. If a PIR sensor never clears (e.g. hardware fault),
+        this forces the light off after this long anyway, instead of waiting
+        forever for both sensors to read "off".
+      default:
+        hours: 4
+      selector:
+        duration:
+          enable_day: false
+          enable_hour: true
+          enable_minute: true
+          enable_second: false
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  motion_sensor_1: !input motion_sensor_1
+  motion_sensor_2: !input motion_sensor_2
+
+triggers:
+  - trigger: state
+    entity_id: !input motion_sensor_1
+    to: "on"
+    id: motion_1
+
+  - trigger: state
+    entity_id: !input motion_sensor_2
+    to: "on"
+    id: motion_2
+
+conditions:
+  - condition: sun
+    after: sunset
+    after_offset: !input sunset_offset
+
+actions:
+  - action: light.turn_on
+    target: !input target_light
+    data:
+      brightness_pct: !input brightness
+
+  - wait_for_trigger:
+      - trigger: template
+        value_template: >
+          {{
+            is_state(motion_sensor_1, 'off')
+            and is_state(motion_sensor_2, 'off')
+          }}
+        for: !input no_motion_duration
+    timeout: !input stuck_sensor_timeout
+    continue_on_timeout: true
+
+  - action: light.turn_off
+    target: !input target_light
